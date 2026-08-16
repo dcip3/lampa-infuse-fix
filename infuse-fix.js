@@ -2,7 +2,8 @@
     'use strict';
 
     var PLUGIN_ID = 'lampa_infuse_torrserver_fix';
-    var PLUGIN_VERSION = '1.0.0';
+    var PLUGIN_VERSION = '1.0.1';
+    var interceptionCount = 0;
 
     if (window[PLUGIN_ID + '_ready']) return;
     window[PLUGIN_ID + '_ready'] = true;
@@ -178,15 +179,17 @@
         if (!event || typeof event.setUrl !== 'function') return;
         if (!isTorrServerStream(event.data)) return;
 
+        interceptionCount += 1;
         event.setUrl(buildInfuseUrl(event.data, event.callbacks));
     }
 
     function install() {
-        if (!window.Lampa || !Lampa.Listener || typeof Lampa.Listener.follow !== 'function') return;
+        if (!window.Lampa || !Lampa.Player || !Lampa.Player.listener) return;
+        if (typeof Lampa.Player.listener.follow !== 'function') return;
         if (window[PLUGIN_ID + '_installed']) return;
 
         window[PLUGIN_ID + '_installed'] = true;
-        Lampa.Listener.follow('infuse_build_url', onInfuseBuildUrl);
+        Lampa.Player.listener.follow('infuse_build_url', onInfuseBuildUrl);
 
         if (Lampa.Manifest) {
             Lampa.Manifest.plugins = {
@@ -202,7 +205,13 @@
     window.LampaInfuseTorrServerFix = {
         version: PLUGIN_VERSION,
         isTorrServerStream: isTorrServerStream,
-        buildInfuseUrl: buildInfuseUrl
+        buildInfuseUrl: buildInfuseUrl,
+        status: function () {
+            return {
+                installed: Boolean(window[PLUGIN_ID + '_installed']),
+                interceptions: interceptionCount
+            };
+        }
     };
 
     if (window.appready) {

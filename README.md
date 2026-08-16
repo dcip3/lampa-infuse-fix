@@ -13,7 +13,7 @@ Lampa loads plugins from a URL, so `infuse-fix.js` must be available over HTTP(S
 This repository publishes the plugin through GitHub Pages. Add the following URL in **Lampa → Settings → Extensions → Add plugin**:
 
 ```text
-https://dcip3.github.io/lampa-infuse-fix/infuse-fix.js
+https://dcip3.github.io/lampa-infuse-fix/infuse-fix.js?v=1.0.1
 ```
 
 Fully restart Lampa after adding the URL.
@@ -95,7 +95,19 @@ LampaInfuseTorrServerFix.version
 Expected result:
 
 ```text
-1.0.0
+1.0.1
+```
+
+To confirm that the plugin subscribed to the player event and intercepted a launch, run:
+
+```js
+LampaInfuseTorrServerFix.status()
+```
+
+After at least one TorrServer launch through Infuse, the expected result is similar to:
+
+```js
+{ installed: true, interceptions: 1 }
 ```
 
 The URL generator can also be checked without launching Infuse:
