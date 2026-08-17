@@ -2,7 +2,7 @@
 
 A small, dependency-free Lampa plugin that fixes incorrect episode selection when opening large TorrServer torrent packs in Infuse.
 
-When an episode is selected, the plugin sends **only the selected file URL** to Infuse. This guarantees that Infuse opens the requested episode even when it appears after the first 40 files in the torrent. Regular URLs, other external players, and Lampa's built-in player are not modified.
+When an episode is selected, the plugin sends that episode first, followed by up to 39 subsequent files from the torrent. This guarantees that Infuse opens the requested episode and can continue forward without wrapping back to the beginning of the torrent. Regular URLs, other external players, and Lampa's built-in player are not modified.
 
 ## Installation
 
@@ -13,7 +13,7 @@ Lampa loads plugins from a URL, so `infuse-fix.js` must be available over HTTP(S
 This repository publishes the plugin through GitHub Pages. Add the following URL in **Lampa → Settings → Extensions → Add plugin**:
 
 ```text
-https://dcip3.github.io/lampa-infuse-fix/infuse-fix.js?v=1.0.1
+https://dcip3.github.io/lampa-infuse-fix/infuse-fix.js?v=1.1.0
 ```
 
 Fully restart Lampa after adding the URL.
@@ -41,17 +41,17 @@ This works when Lampa runs on the same Mac. If the browser blocks an HTTP plugin
 3. Select any episode, including one far down the list.
 4. Infuse should open that exact episode.
 
-For example, a selected TorrServer stream containing `index=85` is converted into a single-item Infuse request similar to:
+For example, a selected TorrServer stream containing `index=85` becomes the first item in an Infuse request similar to:
 
 ```text
-infuse://x-callback-url/play?url=http%3A%2F%2F192.168.1.7%3A8090%2Fstream%2FRick.and.Morty.S09E04.mkv%3Flink%3D...%26index%3D85%26play&filename=Rick.and.Morty.S09E04.mkv&...
+infuse://x-callback-url/play?url=...%26index%3D85%26play&filename=...S09E04.mkv&url=...%26index%3D86%26play&filename=...S09E05.mkv&...
 ```
 
-The request contains one `url` parameter, and that URL retains the selected TorrServer file index.
+The selected TorrServer URL is always first. Only subsequent items are appended; files before the selected item are never added at the end.
 
 ## Root cause
 
-As reviewed on August 16, 2026, Lampa's `src/core/infusePlayer.js` performs these steps:
+As reviewed on August 17, 2026, Lampa's `src/core/infusePlayer.js` performs these steps:
 
 1. Finds the selected episode and records its `startIndex`.
 2. Builds links from the beginning of the source playlist, stopping at `maxItems: 40`.
@@ -61,7 +61,12 @@ If the selected episode is at position 40 or later, it is already absent from th
 
 ## How it works
 
-The plugin subscribes to Lampa's supported `infuse_build_url` extension event. Immediately before Infuse launches, it checks whether the selected stream is a TorrServer URL and replaces the generated playlist request with a single `play` request containing `data.url`.
+The plugin subscribes to Lampa's supported `infuse_build_url` extension event. Immediately before Infuse launches, it checks whether the selected stream is a TorrServer URL, finds that URL in the original playlist, and builds a forward-only temporary playlist:
+
+1. The selected item is placed first.
+2. Up to 39 subsequent items are appended in their original order.
+3. Items before the selection are never appended, so playback cannot wrap to the first season.
+4. The list is shortened further if the deep link approaches 65,536 characters.
 
 When available, the request also preserves:
 
@@ -95,7 +100,7 @@ LampaInfuseTorrServerFix.version
 Expected result:
 
 ```text
-1.0.1
+1.1.0
 ```
 
 To confirm that the plugin subscribed to the player event and intercepted a launch, run:
@@ -107,7 +112,7 @@ LampaInfuseTorrServerFix.status()
 After at least one TorrServer launch through Infuse, the expected result is similar to:
 
 ```js
-{ installed: true, interceptions: 1 }
+{ installed: true, interceptions: 1, lastPlaylistSize: 40 }
 ```
 
 The URL generator can also be checked without launching Infuse:
@@ -122,9 +127,11 @@ LampaInfuseTorrServerFix.buildInfuseUrl({
 
 The plugin requires a Lampa version that provides the `infuse_build_url` event. The event is present in both the current source and published Lampa bundle at the time of this review.
 
-## Limitation
+## Playlist limits
 
-Only the selected episode is sent to Infuse. Automatic playback of the next episode inside Infuse's temporary playlist is therefore unavailable; select the next episode in Lampa. This behavior is intentional and guarantees unambiguous episode selection.
+The temporary playlist contains at most 40 items in total: the selected episode plus up to 39 following items. If the remaining deep link would exceed 65,536 characters, fewer items are included. The selected episode is always retained as the first item.
+
+Earlier episodes are intentionally omitted. Infuse's URL API plays entries sequentially and does not provide a documented start-index parameter, so including earlier episodes while preserving chronological order would cause Infuse to start the wrong item.
 
 ## References
 
